@@ -73,6 +73,10 @@ li[draggable]{cursor:grab}
 .opt input{min-height:0;width:20px;height:20px}
 .mv{font:inherit;font-size:13px;min-height:36px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);padding:0 4px}
 .badge{display:inline-block;font-size:12px;font-weight:800;background:var(--y);color:#10291c;border-radius:6px;padding:0 6px;margin-inline-end:6px;vertical-align:1px}
+.cfg{margin-top:22px;border-top:1px solid var(--line);padding-top:12px;font-size:14px}
+.cfg summary{cursor:pointer;color:var(--mute);min-height:36px}
+.cfg form{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-top:10px}.opt[hidden]{display:none}.cfg label{display:grid;gap:4px}
+.cfg .row{display:flex;gap:8px;flex-wrap:wrap}.ghost{background:var(--g2);color:var(--ink)}
 .foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:18px;font-size:13px;color:var(--mute)}
 .foot button{background:transparent;color:var(--mute);border:1px solid var(--line);min-height:36px;font-size:13px}
 @media(max-width:600px){
@@ -128,26 +132,74 @@ li[draggable]{cursor:grab}
  <ul id="list"></ul>
 
  <div class="foot">
-  <span>タスクはドラッグでタブへ移動・並べ替え（スマホは「移動…」から）。データはこの端末に保存</span>
+  <span>ドラッグでタブへ移動・並べ替え（スマホは「移動…」から）<br><span id="sync">同期：未設定</span></span>
   <span><button id="clearDone" type="button">完了を消す</button> <button id="reset" type="button">全部リセット</button></span>
  </div>
+ <details class="cfg">
+  <summary>同期の設定（PCとiPhoneで同じタスクにする）</summary>
+  <form id="cfgForm">
+   <label>Apps ScriptのURL<input id="cfgUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
+   <label>合言葉<input id="cfgKey" type="text" autocomplete="off" autocapitalize="off"></label>
+   <div class="row"><button class="add" type="submit">保存して同期</button><button type="button" id="syncNow" class="ghost">今すぐ同期</button></div>
+  </form>
+ </details>
 </main>
 
 <script>
 {
 const $=id=>document.getElementById(id);
-const KEY='taskman-v2';
+const KEY='taskman-v2',CKEY='taskman-sync';
 const LANES=[['today','今日'],['week','今週'],['new','NEW'],['later','後々']];
-const LN=Object.fromEntries(LANES);
-let tasks=[],lane='today',runId=null,tick=null,armReset=false,dragId=null;
+let tasks=[],dead={},lane='today',runId=null,tick=null,armReset=false,dragId=null;
+let cfg={url:'',key:''},syncing=false,again=false,syncTimer=null;
 const todayStr=new Date().toDateString();
-try{const d=JSON.parse(localStorage.getItem(KEY)||'null');if(d){tasks=d.tasks||[];if(d.day!==todayStr)tasks=tasks.filter(t=>!(t.done&&inToday(t)))}}catch(e){}
-function inToday(t){return t.lane==='today'||(t.lane==='new'&&t.alsoToday)}
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({day:todayStr,tasks}))}catch(e){}};
+const inToday=t=>t.lane==='today'||(t.lane==='new'&&t.alsoToday);
+try{cfg=Object.assign(cfg,JSON.parse(localStorage.getItem(CKEY)||'{}'))}catch(e){}
+try{const d=JSON.parse(localStorage.getItem(KEY)||'null');if(d){tasks=d.tasks||[];dead=d.dead||{};
+ tasks.forEach(t=>{if(!t.u)t.u=Date.now();if(t.o==null)t.o=t.id});
+ if(d.day!==todayStr)tasks.filter(t=>t.done&&inToday(t)).forEach(kill)}}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({day:todayStr,tasks,dead}))}catch(e){}};
+function kill(t){dead[t.id]=Date.now();tasks=tasks.filter(x=>x!==t)}
+function touch(t){t.u=Date.now()}
+function changed(){save();render();clearTimeout(syncTimer);syncTimer=setTimeout(sync,1200)}
+
+function merge(a,b){
+ const d=Object.assign({},a.dead||{});for(const[k,v]of Object.entries(b.dead||{}))if(!(d[k]>=v))d[k]=v;
+ const map={};for(const t of[...(a.tasks||[]),...(b.tasks||[])]){const c=map[t.id];if(!c||(t.u||0)>(c.u||0))map[t.id]=t}
+ const cut=Date.now()-30*864e5;for(const k in d)if(d[k]<cut)delete d[k];
+ return{tasks:Object.values(map).filter(t=>!(d[t.id]>=(t.u||0))),dead:d};
+}
+function setStatus(t){$('sync').textContent=t}
+async function sync(){
+ if(!cfg.url){setStatus('同期：未設定（この端末だけに保存）');return}
+ if(syncing){again=true;return}
+ syncing=true;setStatus('同期中…');
+ try{
+  const r=await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:cfg.key,tasks,dead})});
+  const d=await r.json();
+  if(d.error){setStatus('同期できない：合言葉が違うかも');return}
+  const run=tasks.find(t=>t.id===runId);
+  const m=merge({tasks,dead},d);tasks=m.tasks;dead=m.dead;
+  if(run){const t=tasks.find(x=>x.id===run.id);if(t)t.el=Math.max(t.el||0,run.el||0);else stopRun()}
+  save();render();
+  const n=new Date();setStatus(`同期済み ${n.getHours()}:${String(n.getMinutes()).padStart(2,'0')}`);
+ }catch(e){setStatus('オフライン（つながったら同期）')}
+ finally{syncing=false;if(again){again=false;sync()}}
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync()});
+addEventListener('online',sync);
+setInterval(()=>{if(!document.hidden)sync()},60000);
+
+$('cfgUrl').value=cfg.url;$('cfgKey').value=cfg.key;
+$('cfgForm').addEventListener('submit',e=>{e.preventDefault();cfg={url:$('cfgUrl').value.trim(),key:$('cfgKey').value.trim()};
+ try{localStorage.setItem(CKEY,JSON.stringify(cfg))}catch(_){}
+ say(cfg.url?'同期をセットした！これでどこでも一緒だ！':'同期をオフにした。');sync()});
+$('syncNow').addEventListener('click',sync);
+
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 const fmt=m=>m>=60?`${Math.floor(m/60)}時間${m%60?m%60+'分':''}`:`${m}分`;
 const esc=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const view=l=>l==='today'?tasks.filter(inToday):tasks.filter(t=>t.lane===l);
+const view=l=>(l==='today'?tasks.filter(inToday):tasks.filter(t=>t.lane===l)).sort((x,y)=>x.o-y.o);
 const sum=a=>a.reduce((s,t)=>s+t.m,0);
 
 const LINES={
@@ -171,9 +223,9 @@ $('presets').addEventListener('click',e=>{const m=e.target.dataset.m;if(m){$('mi
 
 function moveTo(t,to){
  if(!t||to===t.lane&&!(to==='today'&&t.lane==='new'))return;
- if(to==='today'&&t.lane==='new'){t.alsoToday=true;say('NEWのまま今日にも入れた！');}
+ if(to==='today'&&t.lane==='new'){t.alsoToday=true;say('NEWのまま今日にも入れた！')}
  else{if(runId===t.id&&to!=='today')stopRun();t.lane=to;if(to!=='new')t.alsoToday=false;say(LINES.move[to])}
- save();render();
+ touch(t);changed();
 }
 
 $('tabs').addEventListener('click',e=>{const b=e.target.closest('.tab');if(b){lane=b.dataset.l;render()}});
@@ -185,23 +237,23 @@ $('f').addEventListener('submit',e=>{
  e.preventDefault();
  const name=$('name').value.trim();const m=Math.max(1,parseInt($('mins').value,10)||0);
  if(!name){say('仕事の名前を入れてくれ！読心術は使えない！');$('name').focus();return}
- const also=lane==='new'&&$('alsoToday').checked;
- tasks.push({id:Date.now(),name,m,done:false,el:0,lane,alsoToday:also});
+ const also=lane==='new'&&$('alsoToday').checked,now=Date.now();
+ tasks.push({id:now,name,m,done:false,el:0,lane,alsoToday:also,o:now,u:now});
  $('name').value='';
  if(lane==='today'||also){const total=sum(view('today').filter(t=>!t.done));say(total>=480?LINES.many(total):m>=120?pick(LINES.big)(m):pick(LINES.add)(m))}
  else say(LINES.calm[lane]);
- save();render();$('name').focus();
+ changed();$('name').focus();
 });
 
-function stopRun(){runId=null;clearInterval(tick);tick=null}
+function stopRun(){const t=tasks.find(x=>x.id===runId);if(t)touch(t);runId=null;clearInterval(tick);tick=null}
 
 $('list').addEventListener('change',e=>{if(e.target.classList.contains('mv')){const li=e.target.closest('li');moveTo(tasks.find(x=>x.id==li.dataset.id),e.target.value)}});
 $('list').addEventListener('dragstart',e=>{const li=e.target.closest('li[data-id]');if(!li)return;dragId=+li.dataset.id;e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',li.dataset.id)}catch(_){}});
 $('list').addEventListener('dragover',e=>{if(dragId!==null&&e.target.closest('li[data-id]'))e.preventDefault()});
 $('list').addEventListener('drop',e=>{
  const li=e.target.closest('li[data-id]');if(!li||dragId===null)return;e.preventDefault();
- const from=tasks.findIndex(x=>x.id===dragId),to=tasks.findIndex(x=>x.id==li.dataset.id);
- if(from>-1&&to>-1&&from!==to){const[t]=tasks.splice(from,1);tasks.splice(to,0,t);save();render()}dragId=null});
+ const v=view(lane),from=v.findIndex(x=>x.id===dragId),to=v.findIndex(x=>x.id==li.dataset.id);
+ if(from>-1&&to>-1&&from!==to){const[t]=v.splice(from,1);v.splice(to,0,t);v.forEach((x,i)=>{x.o=i;touch(x)});changed()}dragId=null});
 $('list').addEventListener('dragend',()=>{dragId=null;render()});
 
 $('list').addEventListener('click',e=>{
@@ -218,21 +270,22 @@ $('list').addEventListener('click',e=>{
     const td=view('today');if(td.length&&td.every(x=>x.done))setTimeout(()=>{say(pick(LINES.all));jump()},900);
    }else say('片付いた。いいね。');
   }else say('おっと、まだだったか！');
+  touch(t);
  }else if(e.target.closest('.run')){
   if(runId===t.id){stopRun();say(`一時停止！ここまで${fmt(Math.max(1,Math.round(t.el/60)))}、よくやった！`)}
-  else{stopRun();runId=t.id;let last=Date.now();tick=setInterval(()=>{const n=Date.now();const before=t.el;t.el+=(n-last)/1000;last=n;
-   if(before<t.m*60&&t.el>=t.m*60)say('想定時間きた！ラストスパートだ！');
+  else{stopRun();runId=t.id;let last=Date.now();tick=setInterval(()=>{const r=tasks.find(x=>x.id===runId);if(!r)return;const n=Date.now();const before=r.el||0;r.el=before+(n-last)/1000;last=n;
+   if(before<r.m*60&&r.el>=r.m*60)say('想定時間きた！ラストスパートだ！');
    renderElapsed();save()},1000);say(pick(LINES.start))}
  }else if(e.target.closest('.del')){
-  if(runId===t.id)stopRun();tasks=tasks.filter(x=>x!==t);say(pick(LINES.del));
+  if(runId===t.id)stopRun();kill(t);say(pick(LINES.del));
  }
- save();render();
+ changed();
 });
 
-$('clearDone').addEventListener('click',()=>{const v=view(lane).filter(t=>t.done);tasks=tasks.filter(t=>!v.includes(t));save();render();say(v.length?`${v.length}個の勝利を胸にしまった！`:'まだ完了がないぞ！')});
+$('clearDone').addEventListener('click',()=>{const v=view(lane).filter(t=>t.done);v.forEach(kill);changed();say(v.length?`${v.length}個の勝利を胸にしまった！`:'まだ完了がないぞ！')});
 $('reset').addEventListener('click',e=>{
  if(!armReset){armReset=true;e.target.textContent='本当に？もう一回押す';setTimeout(()=>{armReset=false;e.target.textContent='全部リセット'},3000);return}
- stopRun();tasks=[];armReset=false;e.target.textContent='全部リセット';save();render();say('まっさらだ！新しい始まりだ！');
+ stopRun();[...tasks].forEach(kill);armReset=false;e.target.textContent='全部リセット';changed();say('まっさらだ！新しい始まりだ！');
 });
 
 function renderElapsed(){
@@ -258,10 +311,11 @@ function render(){
   <button class="del" aria-label="削除">×</button></li>`}).join(''):`<li class="empty" style="display:block">${{today:'まだ何もない。平和だ…でも何かあるだろ？',week:'今週分はまだ空。',new:'新着なし。',later:'後々も空。すっきり。'}[lane]}</li>`;
 }
 setInterval(()=>{if(lane==='today')render()},60000);
-render();
+save();render();
 const td=view('today').filter(t=>!t.done);
 if(td.length)say(`おかえり！今日の残り${td.length}個、${fmt(sum(td))}だ！`);
 else{const h=new Date().getHours();say(h<12?'おはよう！今日やることを教えてくれ！':h<18?'午後もいこう！今からやること、書いてくれ！':'夜だな…本当に必要なやつだけ書こう！')}
+sync();
 }
 </script>
 <script>
