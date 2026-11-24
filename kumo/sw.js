@@ -1,5 +1,5 @@
 // 中身を更新したら VERSION の数字を上げる → iPhone側も新しい版に入れ替わる
-const VERSION = 'kumo-v4';
+const VERSION = 'kumo-v5';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -15,7 +15,7 @@ self.addEventListener('fetch', e => {
   const font = /fonts\.(googleapis|gstatic)\.com$/.test(u.hostname);
   if (e.request.method !== 'GET' || !(mine || font)) return;
   e.respondWith(
-    fetch(e.request).then(r => {
+    fetch(e.request, mine ? { cache: 'no-cache' } : undefined).then(r => {
       if (r.ok || r.type === 'opaque') { const copy = r.clone(); caches.open(VERSION).then(c => c.put(e.request, copy)); }
       return r;
     }).catch(() => caches.match(e.request).then(r => r || (mine ? caches.match('./index.html') : undefined)))

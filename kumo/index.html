@@ -186,8 +186,9 @@ function addCloud(){
   const last=sky.querySelector('.cloud:last-of-type textarea');if(last)last.focus();
 }
 
-function changed(){cache();clearTimeout(saveT);if(cfg.url){setSync('busy','同期待ち…');saveT=setTimeout(sync,1200)}}
+function changed(){cache();clearTimeout(saveT);if(cfg.url){setSync('busy','同期待ち…');saveT=setTimeout(sync,3000)}}
 
+function editing(){const a=document.activeElement;return !!(a&&a.tagName==='TEXTAREA')}
 function merge(a,b){
   const d=Object.assign({},a.dead||{});
   Object.keys(b.dead||{}).forEach(k=>{if(!(d[k]>=b.dead[k]))d[k]=b.dead[k]});
@@ -199,6 +200,7 @@ function merge(a,b){
 async function sync(){
   if(!cfg.url){setSync('off','同期：未設定（この端末だけに保存）');return}
   if(syncing){again=true;return}
+  if(editing()){setSync('busy','書き終わったら同期します');return}
   syncing=true;setSync('busy','同期中…');
   try{
     const r=await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:cfg.key,notes,dead})});
@@ -246,7 +248,8 @@ cfgEl.addEventListener('submit',e=>{e.preventDefault();
   openCfg(false);sync()});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync()});
 addEventListener('online',sync);
-setInterval(()=>{if(!document.hidden)sync()},60000);
+setInterval(()=>{if(!document.hidden&&!editing())sync()},60000);
+sky.addEventListener('focusout',e=>{if(e.target.tagName==='TEXTAREA'){clearTimeout(saveT);saveT=setTimeout(()=>{if(!editing())sync()},600)}});
 sync();
 if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
