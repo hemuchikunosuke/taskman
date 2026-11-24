@@ -9,3 +9,8 @@
 ## 同期（PCとiPhoneで同じタスク）
 
 `gas/Code.gs` をGoogleスプレッドシートのApps Scriptに貼ってウェブアプリとして公開し、アプリ下部「同期の設定」にURLと合言葉を入れる。
+
+## 雲メモ（/kumo/）
+
+ふわふわ浮かぶ雲にメモを書くPWA。https://hemuchikunosuke.github.io/taskman/kumo/
+同期は kumo/gas/Code.gs を「雲メモ データ」スプシのApps Scriptに入れて使う。更新時は kumo/sw.js の VERSION を上げる。

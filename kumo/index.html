@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#9fd6f5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="雲メモ">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>雲メモ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/*
+VOICE: やわらかく、静か。空にメモを浮かべるだけ
+IDEA: 窓から見える空。メモは雲になって漂う
+PICTURE: 空いっぱいの雲。雲そのものが道具
+COLOUR and TYPE: 昼は水色の空と白い雲＋桃・藤の雲、夜は群青と淡い雲。Zen Maru Gothic
+LAYOUT: 上に細いツールバー、下は空が全面。スマホでは雲が縦に並ぶ
+*/
+:root{color-scheme:light dark;
+--sky1:light-dark(#9fd6f5,#0d1b3a);--sky2:light-dark(#e6f5ff,#1f2f5c);
+--ink:light-dark(#2b3a55,#e9eefc);--soft:light-dark(#5b6b88,#a9b6d8);
+--bar:light-dark(rgba(255,255,255,.72),rgba(14,24,52,.72));
+--c-white:light-dark(#ffffff,#dfe6f7);--c-peach:light-dark(#ffe1e4,#e9c9d2);
+--c-lilac:light-dark(#e9e2ff,#cbc4ee);--c-mint:light-dark(#dff5ec,#c3e0d6);
+--shade:light-dark(rgba(60,110,160,.22),rgba(0,0,0,.4))}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;color:var(--ink);font:16px/1.55 "Zen Maru Gothic","Hiragino Maru Gothic ProN",sans-serif;
+background:linear-gradient(180deg,var(--sky1),var(--sky2));overflow:hidden;display:flex;flex-direction:column}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:calc(10px + env(safe-area-inset-top)) max(3vw,14px,env(safe-area-inset-right)) 10px max(3vw,14px,env(safe-area-inset-left));
+background:var(--bar);backdrop-filter:blur(10px);z-index:5}
+h1{font-size:20px;margin:0 6px 0 0;font-weight:700;letter-spacing:.02em}
+.grp{display:flex;gap:6px;align-items:center}
+.grp span{font-size:13px;color:var(--soft)}
+button{font:inherit;color:inherit;cursor:pointer}
+.chip{min-height:36px;min-width:44px;padding:0 12px;border-radius:999px;border:1.5px solid transparent;
+background:light-dark(rgba(255,255,255,.8),rgba(255,255,255,.08));font-size:14px}
+.chip[aria-pressed=true]{border-color:var(--ink);font-weight:700}
+.dot{width:30px;height:30px;border-radius:50%;border:2px solid light-dark(#cfd9e8,#4a5880);padding:0}
+.dot[aria-pressed=true]{border-color:var(--ink);box-shadow:0 0 0 2px var(--bar),0 0 0 4px var(--ink)}
+.add{min-height:40px;padding:0 18px;border-radius:999px;border:0;font-weight:700;
+background:var(--ink);color:light-dark(#fff,#0d1b3a);box-shadow:0 6px 16px var(--shade)}
+button:focus-visible,textarea:focus-visible{outline:3px solid light-dark(#2b6fd6,#9cc1ff);outline-offset:2px}
+.sync{margin-left:auto;font-size:13px;color:var(--soft);display:flex;align-items:center;gap:6px}
+.sync i{width:8px;height:8px;border-radius:50%;background:#9aa7bf}
+.sync[data-s=ok] i{background:#4cc38a}.sync[data-s=busy] i{background:#f0b54a}.sync[data-s=off] i{background:#e57373}
+.sync a{color:inherit}
+.sky{position:relative;flex:1;overflow:auto}
+.stars{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .6s}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .stars{opacity:1}}
+:root[data-theme=dark] .stars{opacity:1}
+.cloud{position:absolute;touch-action:none;animation:bob var(--d,7s) ease-in-out infinite;
+filter:drop-shadow(0 14px 18px var(--shade))}
+.cloud.drag{animation-play-state:paused;filter:drop-shadow(0 22px 26px var(--shade));z-index:4}
+.cloud svg{display:block;width:100%;height:100%}
+.cloud svg use{fill:var(--fill)}
+.cloud textarea{position:absolute;left:18%;right:16%;top:34%;bottom:16%;border:0;background:transparent;resize:none;
+font:inherit;font-size:var(--fs);line-height:1.45;color:#2b3a55;text-align:center;padding:2px}
+.cloud textarea::placeholder{color:#8a97ad}
+.del{position:absolute;right:9%;top:22%;width:30px;height:30px;border-radius:50%;border:0;
+background:rgba(43,58,85,.1);color:#2b3a55;font-size:16px;line-height:30px;opacity:0;transition:opacity .2s}
+.cloud:hover .del,.cloud:focus-within .del{opacity:1}
+.grip{position:absolute;left:30%;right:30%;top:18%;height:16%;cursor:grab}
+.cloud.drag .grip{cursor:grabbing}
+.empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--soft);pointer-events:none;padding:20px}
+.empty b{display:block;font-size:22px;color:var(--ink);margin-bottom:6px}
+.gear{min-height:36px;padding:0 12px;border-radius:999px;border:0;background:transparent;color:var(--soft);font-size:13px;text-decoration:underline}
+.cfg{position:absolute;right:max(3vw,14px);top:8px;z-index:9;width:min(360px,calc(100vw - 28px));padding:16px;border-radius:22px;
+background:light-dark(#fff,#16244a);box-shadow:0 18px 40px var(--shade);display:grid;gap:10px}
+.cfg[hidden]{display:none}.cfg label{display:grid;gap:4px;font-size:13px;color:var(--soft)}
+.cfg input{font:inherit;font-size:16px;min-height:44px;padding:0 12px;border-radius:12px;border:1.5px solid light-dark(#cfd9e8,#3b4a75);background:transparent;color:var(--ink)}
+.cfg .row{display:flex;gap:8px;flex-wrap:wrap}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+@media (prefers-reduced-motion:reduce){.cloud{animation:none}}
+@media(max-width:600px){
+  .bar{gap:8px 10px}.sync{margin-left:0;width:100%}
+  .sky.stack{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 0 calc(40px + env(safe-area-inset-bottom))}
+  .sky.stack .cloud{position:relative;left:auto!important;top:auto!important}
+  .sky.stack .grip{display:none}
+}
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>雲メモ</h1>
+  <div class="grp" role="group" aria-label="大きさ"><span>大きさ</span>
+    <button class="chip" data-size="s">小</button><button class="chip" data-size="m">中</button><button class="chip" data-size="l">大</button>
+  </div>
+  <div class="grp" role="group" aria-label="色"><span>色</span>
+    <button class="dot" data-color="white" aria-label="しろ" style="background:var(--c-white)"></button>
+    <button class="dot" data-color="peach" aria-label="もも" style="background:var(--c-peach)"></button>
+    <button class="dot" data-color="lilac" aria-label="ふじ" style="background:var(--c-lilac)"></button>
+    <button class="dot" data-color="mint" aria-label="わかば" style="background:var(--c-mint)"></button>
+  </div>
+  <button class="add" id="add">＋ 雲をうかべる</button>
+  <div class="sync" id="sync" data-s="idle"><i></i><span id="syncText">つないでいます…</span><button class="gear" id="gear" aria-expanded="false">同期の設定</button></div>
+</div>
+<form class="cfg" id="cfg" hidden>
+  <b>同期の設定</b>
+  <label>Apps ScriptのURL<input id="cfgUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
+  <label>合言葉<input id="cfgKey" type="text" autocomplete="off" autocapitalize="off"></label>
+  <div class="row"><button class="add" type="submit">保存して同期</button><button type="button" class="chip" id="cfgClose">閉じる</button></div>
+</form>
+<div class="sky" id="sky" style="position:relative">
+  <svg class="stars" id="stars" aria-hidden="true"></svg>
+  <div class="empty" id="empty" hidden><div><b>空はまだからっぽ</b>「＋ 雲をうかべる」でメモを浮かべてください</div></div>
+</div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="cl" viewBox="0 0 240 160">
+    <path d="M58 138c-27 0-46-17-46-40 0-21 16-37 38-39 4-26 26-44 52-44 21 0 39 11 48 29 6-3 13-4 20-4 26 0 46 19 47 44 13 6 22 19 22 33 0 12-9 21-22 21z"/>
+  </symbol>
+</svg>
+<script>
+{
+const SIZES={s:{w:190,h:127,fs:'14px'},m:{w:250,h:167,fs:'16px'},l:{w:330,h:220,fs:'19px'}};
+const KEY='kumo-app-v1',CKEY='kumo-sync';
+const sky=document.getElementById('sky'),emptyEl=document.getElementById('empty');
+const syncEl=document.getElementById('sync'),syncText=document.getElementById('syncText');
+let notes=[],dead={},pick={size:'m',color:'white'},cfg={url:'',key:''},saveT=null,syncing=false,again=false;
+try{cfg=Object.assign(cfg,JSON.parse(localStorage.getItem(CKEY)||'{}'))}catch(e){}
+
+function load(){try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){return null}}
+function cache(){try{localStorage.setItem(KEY,JSON.stringify({notes,dead,pick}))}catch(e){}}
+function setSync(s,t){syncEl.dataset.s=s;syncText.textContent=t}
+function hhmm(){const d=new Date();return d.getHours()+':'+String(d.getMinutes()).padStart(2,'0')}
+function narrow(){return innerWidth<=600}
+
+function stars(){
+  const s=document.getElementById('stars');let h='';
+  for(let i=0;i<60;i++){const x=(i*73%100),y=(i*37%60),r=(i%3)*.4+.6;h+=`<circle cx="${x}%" cy="${y}%" r="${r}" fill="#fff" opacity="${.3+(i%5)/8}"/>`}
+  s.innerHTML=h;
+}
+
+function render(){
+  sky.querySelectorAll('.cloud').forEach(n=>n.remove());
+  sky.classList.toggle('stack',narrow());
+  emptyEl.hidden=notes.length>0;
+  notes.forEach((n,i)=>{
+    const z=SIZES[n.size]||SIZES.m,el=document.createElement('div');
+    el.className='cloud';el.dataset.id=n.id;
+    const w=narrow()?Math.min(z.w,innerWidth*.86):z.w,h=w*z.h/z.w;
+    el.style.cssText=`width:${w}px;height:${h}px;left:${n.x}%;top:${n.y}%;--fill:var(--c-${n.color});--fs:${z.fs};--d:${6+(i%4)*1.3}s;animation-delay:-${i*1.1}s`;
+    el.innerHTML='<svg viewBox="0 0 240 160" aria-hidden="true"><use href="#cl"/></svg><div class="grip" title="ドラッグで移動"></div><textarea aria-label="メモ" placeholder="ここに書く"></textarea><button class="del" aria-label="この雲を消す">×</button>';
+    const ta=el.querySelector('textarea');ta.value=n.text;
+    ta.addEventListener('input',()=>{n.text=ta.value;n.u=Date.now();changed()});
+    el.querySelector('.del').addEventListener('click',()=>{dead[n.id]=Date.now();notes=notes.filter(x=>x.id!==n.id);render();changed()});
+    drag(el,n);
+    sky.appendChild(el);
+  });
+}
+
+function drag(el,n){
+  const g=el.querySelector('.grip');let sx,sy,ox,oy,moved=false;
+  g.addEventListener('pointerdown',e=>{
+    if(narrow())return;
+    g.setPointerCapture(e.pointerId);el.classList.add('drag');
+    sx=e.clientX;sy=e.clientY;ox=el.offsetLeft;oy=el.offsetTop;moved=false;
+  });
+  g.addEventListener('pointermove',e=>{
+    if(!el.classList.contains('drag'))return;
+    const W=sky.clientWidth,H=Math.max(sky.clientHeight,sky.scrollHeight);
+    const x=Math.max(-20,Math.min(W-el.offsetWidth+20,ox+e.clientX-sx));
+    const y=Math.max(0,Math.min(H-el.offsetHeight,oy+e.clientY-sy));
+    el.style.left=x/W*100+'%';el.style.top=y/H*100+'%';moved=true;
+  });
+  const up=()=>{
+    if(!el.classList.contains('drag'))return;el.classList.remove('drag');
+    if(moved){n.x=parseFloat(el.style.left);n.y=parseFloat(el.style.top);n.u=Date.now();changed()}
+  };
+  g.addEventListener('pointerup',up);g.addEventListener('pointercancel',up);
+}
+
+function addCloud(){
+  const k=notes.length;
+  notes.push({id:'k'+Date.now().toString(36),text:'',size:pick.size,color:pick.color,
+    x:8+(k*17)%62,y:6+(k*23)%58,u:Date.now()});
+  render();changed();
+  const last=sky.querySelector('.cloud:last-of-type textarea');if(last)last.focus();
+}
+
+function changed(){cache();clearTimeout(saveT);if(cfg.url){setSync('busy','同期待ち…');saveT=setTimeout(sync,1200)}}
+
+function merge(a,b){
+  const d=Object.assign({},a.dead||{});
+  Object.keys(b.dead||{}).forEach(k=>{if(!(d[k]>=b.dead[k]))d[k]=b.dead[k]});
+  const map={};
+  (a.notes||[]).concat(b.notes||[]).forEach(t=>{const c=map[t.id];if(!c||(t.u||0)>(c.u||0))map[t.id]=t});
+  return{notes:Object.keys(map).map(k=>map[k]).filter(t=>!(d[t.id]>=(t.u||0))),dead:d};
+}
+
+async function sync(){
+  if(!cfg.url){setSync('off','同期：未設定（この端末だけに保存）');return}
+  if(syncing){again=true;return}
+  syncing=true;setSync('busy','同期中…');
+  try{
+    const r=await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:cfg.key,notes,dead})});
+    const d=await r.json();
+    if(d.error){setSync('off','同期できない：合言葉が違うかも');return}
+    const m=merge({notes,dead},d);
+    const typing=document.activeElement&&document.activeElement.tagName==='TEXTAREA'?document.activeElement.closest('.cloud').dataset.id:null;
+    notes=m.notes.map(n=>({id:String(n.id),text:String(n.text??''),size:SIZES[n.size]?n.size:'m',
+      color:['white','peach','lilac','mint'].includes(n.color)?n.color:'white',x:Number(n.x)||0,y:Number(n.y)||0,u:Number(n.u)||0}));
+    dead=m.dead;cache();
+    if(!typing)render();
+    setSync('ok','同期済み '+hhmm());
+  }catch(e){setSync('off','オフライン（つながったら同期）')}
+  finally{syncing=false;if(again){again=false;sync()}}
+}
+
+document.querySelectorAll('[data-size]').forEach(b=>b.addEventListener('click',()=>{pick.size=b.dataset.size;marks();cache()}));
+document.querySelectorAll('[data-color]').forEach(b=>b.addEventListener('click',()=>{pick.color=b.dataset.color;marks();cache()}));
+function marks(){
+  document.querySelectorAll('[data-size]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.size===pick.size));
+  document.querySelectorAll('[data-color]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.color===pick.color));
+}
+document.getElementById('add').addEventListener('click',addCloud);
+let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(render,150)});
+
+const saved=load();
+if(saved){notes=saved.notes||[];dead=saved.dead||{};pick=Object.assign(pick,saved.pick||{})}
+else{const t=Date.now();notes=[
+  {id:'demo1',text:'ふわっと思いついたことを、ここへ',size:'l',color:'white',x:6,y:8,u:t},
+  {id:'demo2',text:'上のつまみで動かせます',size:'m',color:'peach',x:46,y:30,u:t},
+  {id:'demo3',text:'小さい雲',size:'s',color:'lilac',x:20,y:52,u:t}]}
+stars();marks();render();
+
+const cfgEl=document.getElementById('cfg'),gear=document.getElementById('gear');
+document.getElementById('cfgUrl').value=cfg.url;document.getElementById('cfgKey').value=cfg.key;
+function openCfg(o){cfgEl.hidden=!o;gear.setAttribute('aria-expanded',o)}
+gear.addEventListener('click',()=>openCfg(cfgEl.hidden));
+document.getElementById('cfgClose').addEventListener('click',()=>openCfg(false));
+cfgEl.addEventListener('submit',e=>{e.preventDefault();
+  cfg={url:document.getElementById('cfgUrl').value.trim(),key:document.getElementById('cfgKey').value.trim()};
+  try{localStorage.setItem(CKEY,JSON.stringify(cfg))}catch(_){}
+  openCfg(false);sync()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync()});
+addEventListener('online',sync);
+setInterval(()=>{if(!document.hidden)sync()},60000);
+sync();
+if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+}
+</script>
+</body>
+</html>
