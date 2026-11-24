@@ -1,5 +1,5 @@
 // 中身を更新したら VERSION の数字を上げる → iPhone側も新しい版に入れ替わる
-const VERSION = 'kumo-v3';
+const VERSION = 'kumo-v4';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
